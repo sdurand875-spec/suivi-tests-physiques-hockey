@@ -1,0 +1,91 @@
+---
+title: ""
+output:
+  pdf_document:
+    latex_engine: xelatex
+params:
+  nom_stage_cible: "Stage_Hiver_2027"
+geometry: "margin=2cm"
+header-includes:
+  - \usepackage{fontspec}
+  - \usepackage{xcolor}
+  - \usepackage{tcolorbox}
+  - \tcbuselibrary{skins,raster}
+  - \definecolor{bordeaux}{RGB}{102,0,0}
+  - \pagecolor{bordeaux}
+  - \color{white}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+
+library(dplyr)
+library(ggplot2)
+library(knitr)
+library(purrr)
+
+source("import_donnees.R", local = knitr::knit_global())
+```
+
+\begin{minipage}{0.2\textwidth}
+```{r out.width="3.2cm"}
+knitr::include_graphics("logo2.png")
+```
+\end{minipage}
+\begin{minipage}{0.78\textwidth}
+\vspace{0.3cm}
+\textcolor{white}{\fontspec{Montserrat Black}\Huge RED BEARS}
+\end{minipage}
+
+\vspace{0.6cm}
+
+```{r}
+# Toutes les infos de ce stage : sa période, son nombre d'athlètes, etc.
+donnees_stage <- donnees %>%
+  filter(nom_stage == params$nom_stage_cible)
+
+date_debut <- min(donnees_stage$date_test, na.rm = TRUE)
+date_fin   <- max(donnees_stage$date_test, na.rm = TRUE)
+date_stage_texte <- paste(format(date_debut, "%d/%m/%Y"), "-", format(date_fin, "%d/%m/%Y"))
+nb_athletes <- donnees_stage %>% distinct(id_athlete) %>% nrow()
+tests_du_stage <- donnees_stage %>% distinct(test) %>% pull(test)
+nom_stage_affichage <- gsub("_", " ", params$nom_stage_cible)
+```
+
+\textcolor{white}{\fontspec{Montserrat}\huge Bilan du stage}
+
+\vspace{0.3cm}
+
+\textcolor{white}{\fontspec{Montserrat}\large `r nom_stage_affichage` \ \textbar\ \ `r date_stage_texte` \ \textbar\ \ `r nb_athletes` athlète(s)}
+
+\vspace{0.3cm}
+
+\textcolor{white}{\fontspec{Montserrat}\small Une barre par athlète, du meilleur en haut au moins bon en bas. Le trait rouge représente la moyenne publiée dans les études, quand elle existe pour la catégorie et le genre : en vert les athlètes au-dessus, en orange ceux en dessous, en gris quand il n'y a pas d'étude.}
+
+\vspace{0.4cm}
+
+```{r results='asis'}
+labels_tests <- c(CMJ = "CMJ (cm)", SJ = "SJ (cm)", Illinois = "Illinois (s)", VIFT = "VIFT (km/h)")
+
+dir.create("temp_img", showWarnings = FALSE)
+
+cat("\\begin{tcbraster}[raster columns=1]\n")
+
+for (t in tests_du_stage) {
+  p <- graphique_bilan_test(donnees, params$nom_stage_cible, t, labels_tests[t])
+  if (is.null(p)) next
+  
+  chemin_png <- file.path("temp_img", paste0("bilan_", t, ".png"))
+  # Hauteur de l'image : plus il y a de jeunes et de groupes, plus elle est haute
+  hauteur <- 1.2 + 0.28 * nrow(p$data) + 0.3 * nlevels(p$data$ligne)
+  ggsave(chemin_png, p, width = 8, height = hauteur, dpi = 150, bg = "white")
+  
+  cat(paste0(
+    "\\begin{tcolorbox}[colback=white, colframe=black, title=", labels_tests[t], ", rounded corners]\n",
+    "\\includegraphics[width=\\linewidth, height=0.8\\textheight, keepaspectratio]{", chemin_png, "}\n",
+    "\\end{tcolorbox}\n"
+  ))
+}
+
+cat("\\end{tcbraster}\n")
+```

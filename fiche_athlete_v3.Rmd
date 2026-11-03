@@ -1,0 +1,92 @@
+---
+title: ""
+output:
+  pdf_document:
+    latex_engine: xelatex
+params:
+  id_athlete: "FDURSAR01022004"
+geometry: "margin=2cm"
+header-includes:
+  - \usepackage{fontspec}
+  - \usepackage{xcolor}
+  - \usepackage{tcolorbox}
+  - \tcbuselibrary{skins,raster}
+  - \usepackage{tabularx}
+  - \definecolor{bordeaux}{RGB}{102,0,0}
+  - \pagecolor{bordeaux}
+  - \color{white}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+
+library(dplyr)
+library(ggplot2)
+library(knitr)
+library(patchwork)
+library(purrr)
+
+source("import_donnees.R", local = knitr::knit_global())
+```
+
+\begin{minipage}{0.2\textwidth}
+```{r out.width="3.2cm"}
+knitr::include_graphics("logo2.png")
+```
+\end{minipage}
+\begin{minipage}{0.78\textwidth}
+\vspace{0.3cm}
+\textcolor{white}{\fontspec{Montserrat Black}\Huge RED BEARS}
+\end{minipage}
+
+\vspace{0.6cm}
+
+```{r}
+infos_athlete <- donnees %>%
+  filter(id_athlete == params$id_athlete) %>%
+  arrange(desc(date_test)) %>%
+  slice(1)
+```
+
+\textcolor{white}{\fontspec{Montserrat}\huge `r infos_athlete$nom_complet`}
+
+\vspace{0.3cm}
+
+\textcolor{white}{\fontspec{Montserrat}\large Catégorie : `r infos_athlete$categorie` \ \textbar\ \ Genre : `r infos_athlete$genre` \ \textbar\ \ Âge au dernier test : `r infos_athlete$age` ans}
+
+\vspace{0.6cm}
+
+```{r results='asis'}
+tests_passes <- donnees %>%
+  filter(id_athlete == params$id_athlete) %>%
+  distinct(test) %>%
+  pull(test)
+
+labels_tests <- c(CMJ = "CMJ (cm)", SJ = "SJ (cm)", Illinois = "Illinois (s)", VIFT = "VIFT (km/h)")
+
+# On sauvegarde un PNG par test, puis on construit le bloc LaTeX qui les assemble
+# en grille de 2 colonnes, chacun dans son propre encadré blanc à bord noir.
+
+cat("\\begin{tcbraster}[raster columns=2, raster equal height, raster valign=top]\n")
+
+for (t in tests_passes) {
+  dir.create("temp_img", showWarnings = FALSE)
+  chemin_png <- file.path("temp_img", paste0("fiche_", t, ".png"))
+  if (is.null(carte_test_athlete(donnees, params$id_athlete, t, chemin_png))) next
+  
+  date_test_texte <- date_dernier_test(donnees, params$id_athlete, t)
+  
+  cat(paste0(
+    "\\begin{tcolorbox}[colback=white, colframe=black, title=", date_test_texte, ", rounded corners]\n",
+    "\\includegraphics[width=\\linewidth]{", chemin_png, "}\n",
+    tableau_reference(donnees, params$id_athlete, t),  # rien s'il n'y a pas d'étude
+    "\\end{tcolorbox}\n"
+  ))
+}
+
+cat("\\end{tcbraster}\n")
+```
+
+\vfill
+
+\noindent\textcolor{white}{\fontspec{Montserrat}\footnotesize \textbf{Comment lire cette fiche ?} La barre de couleur compare ton résultat à celui des jeunes du même stage, de la même catégorie et du même genre : plus le repère est à droite, meilleur est le résultat. Quand un tableau apparaît sous la barre, il compare ton résultat à des valeurs publiées dans des études scientifiques. Quand il n'y a ni barre ni tableau, c'est que pour le moment aucun repère n'a encore été établi pour cette catégorie et/ou ce genre.}
